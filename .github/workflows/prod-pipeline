@@ -1,0 +1,43 @@
+name: Reusable workflow Prod Deployment
+
+on:
+  workflow_call:
+    inputs:
+      REPOSITORY:
+        required: true
+        type: string
+      DEPLOYMENT_NAME:
+        required: true
+        type: string
+      SHORTSHA:
+        required: true
+        type: string
+      NAMESPACE:
+        required: true
+        type: string  
+    
+
+jobs:
+  Helm-Prod-Deploy:
+    name: Deploy to prod
+    runs-on: [ self-hosted, Linux, de-c360-runners-prd ]
+    environment:
+      name: Prod Deployment Approval
+    
+    steps:  
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Deploy 
+        run: |-
+          if [ -d ".helm" ]; then
+            echo " .helm directory exists"
+            cd .helm
+            ls -ltr
+            helm upgrade --install ${{ inputs.DEPLOYMENT_NAME }} ${{ inputs.DEPLOYMENT_NAME }} -f ./${{ inputs.DEPLOYMENT_NAME }}/values.yaml -f ./${{ inputs.DEPLOYMENT_NAME }}/values.yaml -f ./${{ inputs.DEPLOYMENT_NAME }}/values-prod.yaml --set image.tag=${{ inputs.SHORTSHA }} -n ${{ inputs.NAMESPACE }}
+          else
+            echo " helm directory exists"
+            cd helm
+            ls -ltr
+            helm upgrade --install ${{ inputs.DEPLOYMENT_NAME }} ${{ inputs.DEPLOYMENT_NAME }} -f ./${{ inputs.DEPLOYMENT_NAME }}/values.yaml -f ./${{ inputs.DEPLOYMENT_NAME }}/values.yaml -f ./${{ inputs.DEPLOYMENT_NAME }}/values-prd.yaml --set image.tag=${{ inputs.SHORTSHA }} -n ${{ inputs.NAMESPACE }}
+          fi
