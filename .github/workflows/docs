@@ -1,0 +1,51 @@
+name: Documentation Check
+
+on:
+  workflow_call:
+    inputs:
+      DOCS_FRESHNESS_COMMITS:
+        description: "Number of recent commits to check for documentation updates"
+        default: 30
+        required: false
+        type: number
+
+jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if documentation exists
+        run: |
+          # Check if any documentation files exist
+          if [ ! -f "docs/index.md" ] && [ ! -d "docs" ]; then
+            echo "❌ No documentation files found (docs/index.md or docs/ directory)"
+            exit 1
+          fi
+
+      - name: Check documentation freshness
+        run: |
+          echo "🔍 Checking for documentation updates in docs/ directory..."
+
+          # Check if docs directory exists
+          if [ ! -d "docs" ]; then
+            echo "❌ docs/ directory not found"
+            exit 1
+          fi
+
+          # Check if any files in docs/ were updated in recent commits
+          if git log -${{ inputs.DOCS_FRESHNESS_COMMITS }} --name-only -- docs/ | grep -q "^docs/"; then
+            echo "✅ Documentation was updated in the last ${{ inputs.DOCS_FRESHNESS_COMMITS }} commits"
+            
+            echo ""
+            echo "📝 Recently updated files:"
+            git log -${{ inputs.DOCS_FRESHNESS_COMMITS }} --name-only --pretty=format: -- docs/ | \
+              grep "^docs/" | sort | uniq | head -5
+          else
+            echo "❌ No files in docs/ have been updated in the last ${{ inputs.DOCS_FRESHNESS_COMMITS }} commits"
+            echo "::error::Documentation must be updated before proceeding with deployment"
+            exit 1
+          fi
