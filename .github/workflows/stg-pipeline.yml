@@ -1,0 +1,43 @@
+name: Reusable workflow Stg Deployment 
+
+on:
+  workflow_call:
+    inputs:
+      REPOSITORY:
+        required: true
+        type: string
+      DEPLOYMENT_NAME:
+        required: true
+        type: string
+      SHORTSHA:
+        required: true
+        type: string
+      NAMESPACE:
+        required: true
+        type: string  
+    
+
+jobs:
+  Helm-STG-Deploy:
+    name: Deploy to Stg
+    runs-on: [ self-hosted, Linux, de-c360-runners-stg ]
+    environment:
+      name: STG Deployment Approval
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy 
+        run: |-
+          if [ -d ".helm" ]; then
+            echo " .helm directory exists"
+            cd .helm
+            ls -ltr
+            helm upgrade --install ${{ inputs.DEPLOYMENT_NAME }} ${{ inputs.DEPLOYMENT_NAME }} -f ./${{ inputs.DEPLOYMENT_NAME }}/values.yaml -f ./${{ inputs.DEPLOYMENT_NAME }}/values.yaml -f ./${{ inputs.DEPLOYMENT_NAME }}/values-staging.yaml --set image.tag=${{ inputs.SHORTSHA }} -n ${{ inputs.NAMESPACE }}
+          else
+            echo " helm directory exists"
+            cd helm
+            ls -ltr
+            helm upgrade --install ${{ inputs.DEPLOYMENT_NAME }} ${{ inputs.DEPLOYMENT_NAME }} -f ./${{ inputs.DEPLOYMENT_NAME }}/values.yaml -f ./${{ inputs.DEPLOYMENT_NAME }}/values.yaml -f ./${{ inputs.DEPLOYMENT_NAME }}/values-stg.yaml --set image.tag=${{ inputs.SHORTSHA }} -n ${{ inputs.NAMESPACE }}
+          fi
