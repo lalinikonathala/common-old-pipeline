@@ -1,0 +1,94 @@
+name: Reusable workflow example
+
+on:
+  workflow_call:
+    secrets:
+      token:
+        required: true
+    inputs:
+      REPOSITORY:
+        required: true
+        type: string
+      DEPLOYMENT_NAME:
+        required: true
+        type: string
+      SHORTSHA:
+        required: true
+        type: string
+      NAMESPACE:
+        required: true
+        type: string
+      REPOSITORY_URL:
+        required: false
+        type: string
+        description: 'GitHub repository name'
+
+jobs:
+  Helm-stg-Deploy:
+    name: Deploy to stg
+    runs-on: [ pg_custom_runner_ubuntu22 ]
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    environment:
+      name: STG Deployment Approval
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # - name: Set Repository Variable
+      #   run: |
+      #     echo "This workflow was triggered by the repository: ${{ github.repository }}"
+      #     echo "GITHUB_REPOSITORY_TRIGGER=${{ github.repository }}" >> $GITHUB_ENV
+
+      - name: Install Google Cloud SDK
+        run: |
+          ls -ltr
+          rm -rf $HOME/google-cloud-sdk
+          # Download and install the Google Cloud SDK
+          curl -sSL https://sdk.cloud.google.com | bash >/dev/null 2>&1
+          # Add Google Cloud SDK to PATH
+          echo "export PATH=$HOME/google-cloud-sdk/bin:\$PATH" >> $GITHUB_ENV
+
+      - name: Install gke-gcloud-auth-plugin
+        run: |
+          ls -ltr
+          export PATH=$HOME/google-cloud-sdk/bin:$PATH
+          gcloud components install gke-gcloud-auth-plugin  >/dev/null 2>&1
+
+      - name: Authenticate
+        id: auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: 'projects/305408728114/locations/global/workloadIdentityPools/github-pool-c360/providers/github-pool-c360-provider'
+          service_account: 'sa-gha-kube-deploy@dbce-c360-isl-stg-6c25.iam.gserviceaccount.com'
+          token_format: 'access_token'
+
+      - name: Get GKE credentials
+        uses: 'google-github-actions/get-gke-credentials@v2'
+        with:
+          cluster_name: 'gke-cluster'
+          location: 'us-east4'
+          project_id: 'dbce-c360-isl-stg-6c25'
+          use_dns_based_endpoint: true
+
+      - name: Deploy to stg
+        run: |-
+          export PATH=$HOME/google-cloud-sdk/bin:$PATH
+
+          if [ -d "helm" ]; then
+            echo " helm directory exists"
+            cd helm
+            ls -ltr
+            helm upgrade --install ${{ inputs.DEPLOYMENT_NAME }} ${{ inputs.DEPLOYMENT_NAME }}  -f ./${{ inputs.DEPLOYMENT_NAME }}/values.yaml -f ./${{ inputs.DEPLOYMENT_NAME }}/values-stg.yaml --set image.tag=${{ inputs.SHORTSHA }} -n ${{ inputs.NAMESPACE }}
+          elif [ -d ".helm" ]; then
+            echo " .helm directory exists"
+            cd .helm
+            ls -ltr
+            helm upgrade --install ${{ inputs.DEPLOYMENT_NAME }} ${{ inputs.DEPLOYMENT_NAME }}  -f ./${{ inputs.DEPLOYMENT_NAME }}/values.yaml -f ./${{ inputs.DEPLOYMENT_NAME }}/values-stg.yaml --set image.tag=${{ inputs.SHORTSHA }} -n ${{ inputs.NAMESPACE }}
+          else
+            ls -ltr
+            echo "No helm or .helm directory found"
+            exit 1
+          fi
